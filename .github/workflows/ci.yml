@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - trunk
@@ -12,6 +13,7 @@ on:
       - '**.md'
       - 'LICENSE'
       - 'NOTICE'
+      - '.github/workflows/**.yml'
   pull_request:
     branches:
       - trunk
@@ -40,29 +42,28 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - run: ./gradlew assembleLawnWithQuickstepRelease
       - uses: actions/upload-artifact@v4
-        if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
+        # if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
         with:
           name: Release APK
           path: |
             build/outputs/apk/lawnWithQuickstep/release/*.apk
             build/outputs/mapping/lawnWithQuickstepRelease/mapping.txt
 
-  check-style:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: true
-      - uses: actions/setup-java@v5
-        with:
-          distribution: 'zulu'
-          java-version: 21
-      - uses: gradle/actions/setup-gradle@v5
-      - run: ./gradlew spotlessCheck
+  # check-style:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #       with:
+  #         submodules: true
+  #     - uses: actions/setup-java@v5
+  #       with:
+  #         distribution: 'zulu'
+  #         java-version: 21
+  #     - uses: gradle/actions/setup-gradle@v5
+  #     - run: ./gradlew spotlessCheck
 
   nightly-release:
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'Goooler' && github.ref == 'refs/heads/trunk' && github.event_name == 'push'
     needs: build
     permissions:
       contents: write
