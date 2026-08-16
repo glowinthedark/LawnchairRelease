@@ -3,14 +3,17 @@ package app.lawnchair.allapps
 import android.content.Context
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
+import app.lawnchair.data.folder.FolderEntry
 import app.lawnchair.data.folder.model.FolderOrderUtils
 import app.lawnchair.data.folder.model.FolderViewModel
 import app.lawnchair.launcher
 import app.lawnchair.preferences.PreferenceManager
 import app.lawnchair.preferences2.PreferenceManager2
 import app.lawnchair.util.categorizeAppsWithSystemAndGoogle
+import app.lawnchair.util.observeOnce
 import com.android.launcher3.InvariantDeviceProfile.OnIDPChangeListener
 import com.android.launcher3.allapps.AllAppsStore
 import com.android.launcher3.allapps.AlphabeticalAppsList
@@ -20,6 +23,7 @@ import com.android.launcher3.allapps.WorkProfileManager
 import com.android.launcher3.model.data.AppInfo
 import com.android.launcher3.model.data.FolderInfo
 import com.android.launcher3.model.data.ItemInfo
+import com.android.launcher3.util.ComponentKey
 import com.android.launcher3.views.ActivityContext
 import com.patrykmichalik.opto.core.onEach
 import java.util.function.Predicate
@@ -31,7 +35,8 @@ class LawnchairAlphabeticalAppsList<T>(
     workProfileManager: WorkProfileManager?,
     privateProfileManager: PrivateProfileManager?,
 ) : AlphabeticalAppsList<T>(context, appsStore, workProfileManager, privateProfileManager),
-    OnIDPChangeListener
+    OnIDPChangeListener,
+    DefaultLifecycleObserver
     where T : Context, T : ActivityContext {
 
     private var hiddenApps: Set<String> = setOf()
@@ -41,13 +46,14 @@ class LawnchairAlphabeticalAppsList<T>(
     private val viewModel = FolderViewModel(
         (context as? ComponentActivity)?.application ?: context.launcher.application,
     )
-    private var folderList = mutableListOf<FolderInfo>()
+    private var folderList = mutableListOf<FolderEntry>()
     private val filteredList = mutableListOf<AppInfo>()
 
-    private val folderOrder = FolderOrderUtils.stringToIntList(prefs.drawerListOrder.get())
+    private val folderOrder get() = FolderOrderUtils.stringToIntList(prefs.drawerListOrder.get())
 
     init {
         context.launcher.deviceProfile.inv.addOnChangeListener(this)
+        (context as? LifecycleOwner)?.lifecycle?.addObserver(this)
         try {
             prefs2.hiddenApps.onEach(launchIn = context.launcher.lifecycleScope) {
                 hiddenApps = it
@@ -59,12 +65,21 @@ class LawnchairAlphabeticalAppsList<T>(
         observeFolders()
     }
 
+    override fun onDestroy(owner: LifecycleOwner) {
+        context.launcher.deviceProfile.inv.removeOnChangeListener(this)
+    }
+
     private fun observeFolders() {
-        viewModel.foldersLiveData.observe(context as LifecycleOwner) { folders ->
-            folderList = folders
-                .sortedBy { folderOrder.indexOf(it.id) }
-                .toMutableList()
-            updateAdapterItems()
+        viewModel.folders.observeOnce(context as LifecycleOwner) { folders ->
+            if (folders != null) {
+                folderList = folders
+                    .sortedBy {
+                        val index = folderOrder.indexOf(it.id)
+                        if (index == -1) Int.MAX_VALUE else index
+                    }
+                    .toMutableList()
+                updateAdapterItems()
+            }
         }
     }
 
@@ -103,19 +118,24 @@ class LawnchairAlphabeticalAppsList<T>(
                 position++
             }
         } else {
-            folderList.forEach { folder ->
-                if (folder.getContents().size > 1) {
-                    val folderInfo = FolderInfo()
-                    folderInfo.title = folder.title
+            folderList.forEach { folderEntry ->
+                val resolvedApps = folderEntry.itemComponentKeys.mapNotNull { keyString ->
+                    val componentKey = ComponentKey.fromString(keyString) ?: return@mapNotNull null
+                    appsStore.getApp(componentKey) as? AppInfo
+                }
+
+                if (resolvedApps.size > 1) {
+                    val folderInfo = FolderInfo().apply {
+                        title = folderEntry.title
+                        resolvedApps.forEach { add(it) }
+                    }
                     mAdapterItems.add(AdapterItem.asFolder(folderInfo))
-                    folder.getContents().forEach { app ->
-                        (appsStore.getApp(app.componentKey) as? AppInfo)?.let {
-                            folderInfo.add(it)
-                            if (prefs.folderApps.get()) filteredList.add(it)
-                        }
+                    position++
+
+                    if (prefs.folderApps.get()) {
+                        filteredList.addAll(resolvedApps)
                     }
                 }
-                position++
             }
             val remainingApps = appList.filterNot { app -> filteredList.contains(app) && prefs.folderApps.get() }
             position = super.addAppsWithSections(remainingApps, position)

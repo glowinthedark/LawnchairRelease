@@ -37,6 +37,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import app.lawnchair.preferences2.PreferenceManager2;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.DragSource;
 import com.android.launcher3.DropTarget;
@@ -65,6 +66,7 @@ import com.android.launcher3.uioverrides.PredictedAppIcon;
 import com.android.launcher3.uioverrides.QuickstepLauncher;
 import com.android.launcher3.views.Snackbar;
 
+import app.lawnchair.preferences2.PreferenceCacheExtensionsKt;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -126,7 +128,8 @@ public class HotseatPredictionController implements DragController.DragListener,
     public HotseatPredictionController(QuickstepLauncher launcher) {
         mLauncher = launcher;
         mHotseat = launcher.getHotseat();
-        mHotSeatItemsCount = mLauncher.getDeviceProfile().numShownHotseatIcons;
+        mHotSeatItemsCount = mLauncher.getDeviceProfile().numShownHotseatIcons
+                * mLauncher.getDeviceProfile().numHotseatRows;
         mLauncher.getDragController().addDragListener(this);
 
         launcher.addOnDeviceProfileChangeListener(this);
@@ -391,6 +394,10 @@ public class HotseatPredictionController implements DragController.DragListener,
     @Override
     public SystemShortcut<QuickstepLauncher> getShortcut(QuickstepLauncher activity,
             ItemInfo itemInfo, View originalView) {
+        PreferenceManager2 prefs = PreferenceManager2.getInstance(activity);
+        if (PreferenceCacheExtensionsKt.firstCached(prefs.getLockHomeScreen())) {
+            return null;
+        }
         if (itemInfo.container != LauncherSettings.Favorites.CONTAINER_HOTSEAT_PREDICTION) {
             return null;
         }
@@ -411,7 +418,7 @@ public class HotseatPredictionController implements DragController.DragListener,
 
     @Override
     public void onDeviceProfileChanged(DeviceProfile profile) {
-        this.mHotSeatItemsCount = profile.numShownHotseatIcons;
+        this.mHotSeatItemsCount = profile.numShownHotseatIcons * profile.numHotseatRows;
     }
 
     @Override

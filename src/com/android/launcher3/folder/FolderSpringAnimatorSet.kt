@@ -32,12 +32,11 @@ import androidx.dynamicanimation.animation.DynamicAnimation.MIN_VISIBLE_CHANGE_S
 import com.android.launcher3.BubbleTextView
 import com.android.launcher3.LauncherAnimUtils
 import com.android.launcher3.LauncherAnimUtils.SCALE_PROPERTY
-import com.android.launcher3.R
+import com.android.launcher3.LauncherState
 import com.android.launcher3.Utilities.isDarkTheme
 import com.android.launcher3.anim.SpringAnimationBuilder
 import com.android.launcher3.apppairs.AppPairIcon
 import com.android.launcher3.folder.ClippedFolderIconLayoutRule.MAX_NUM_ITEMS_IN_PREVIEW
-import com.android.launcher3.util.Themes
 
 /** Holder for Animators created from [FolderAnimationSpringBuilderManager] */
 class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
@@ -232,10 +231,10 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
         ) {
             with(folder) {
                 val folderBackground = folder.background as GradientDrawable
-                // Set up the Folder background.
+                // Set up the Folder background (respects Lawnchair folder color pref).
                 val isOpening = animationData.isOpening
-                val initialColor = Themes.getAttrColor(context, R.attr.folderPreviewColor)
-                val finalColor = Themes.getAttrColor(context, R.attr.folderBackgroundColor)
+                val initialColor = app.lawnchair.util.resolveFolderPreviewColor(context)
+                val finalColor = app.lawnchair.util.resolveFolderBackgroundColor(context)
                 folderBackground.mutate()
                 folderBackground.setColor(if (isOpening) initialColor else finalColor)
                 // TODO: convert to spring animation?
@@ -328,6 +327,11 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
             launcherDelegate: LauncherDelegate,
         ) {
             val launcher = launcherDelegate.launcher ?: return
+            // Folder scrim uses a black overlay with alpha 0→dimmed; that replaces the app drawer
+            // scrim colors and starts fully transparent, so the list background disappears (#6551).
+            if (launcher.isInState(LauncherState.ALL_APPS)) {
+                return
+            }
             val scrimView = launcher.scrimView
             val workspace = launcher.workspace
             val hotseat = launcher.hotseat
@@ -372,7 +376,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 property = SCALE_PROPERTY,
                 view = hotseat,
             )
-            animatorSet.addListener(FolderScrimAnimationListener(scrimView, isOpening))
+            animatorSet.addListener(FolderScrimAnimationListener(scrimView, isOpening, launcher))
         }
 
         /**

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
@@ -46,6 +48,8 @@ import app.lawnchair.ui.theme.LawnchairTheme
 import app.lawnchair.ui.util.preview.PreferenceGroupPreviewContainer
 import app.lawnchair.ui.util.preview.PreviewLawnchair
 import com.android.launcher3.R
+import com.android.launcher3.util.MSDLPlayerWrapper
+import com.google.android.msdl.data.model.MSDLToken
 import kotlin.math.roundToInt
 
 @Composable
@@ -56,6 +60,7 @@ fun SliderPreference(
     step: Int,
     showAsPercentage: Boolean = false,
     showUnit: String = "",
+    enabled: Boolean = true,
 ) {
     val transformedAdapter = rememberTransformAdapter(
         adapter = adapter,
@@ -71,6 +76,7 @@ fun SliderPreference(
         step = step.toFloat(),
         showAsPercentage = showAsPercentage,
         showUnit = showUnit,
+        enabled = enabled,
     )
 }
 
@@ -83,6 +89,7 @@ fun SliderPreference(
     modifier: Modifier = Modifier,
     showAsPercentage: Boolean = false,
     showUnit: String = "",
+    enabled: Boolean = true,
 ) {
     var adapterValue by adapter
 
@@ -97,9 +104,11 @@ fun SliderPreference(
         modifier = modifier,
         showAsPercentage = showAsPercentage,
         showUnit = showUnit,
+        enabled = enabled,
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SliderPreference(
     label: String,
@@ -110,8 +119,15 @@ private fun SliderPreference(
     modifier: Modifier = Modifier,
     showAsPercentage: Boolean = false,
     showUnit: String = "",
+    enabled: Boolean = true,
 ) {
     var sliderValue by remember { mutableFloatStateOf(value) }
+    val mMSDLPlayerWrapper = MSDLPlayerWrapper.INSTANCE.get(LocalContext.current)
+    val getAppropriateHaptic = if (step == 0f) {
+        MSDLToken.DRAG_INDICATOR_CONTINUOUS
+    } else {
+        MSDLToken.DRAG_INDICATOR_DISCRETE
+    }
 
     DisposableEffect(value) {
         sliderValue = value
@@ -123,10 +139,7 @@ private fun SliderPreference(
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp)
-                    .padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
                     text = label,
@@ -153,21 +166,23 @@ private fun SliderPreference(
                 }
             }
         },
+        modifier = modifier,
         description = {
             Slider(
                 value = sliderValue,
-                onValueChange = { newValue -> sliderValue = newValue },
+                onValueChange = { newValue ->
+                    sliderValue = newValue
+                    mMSDLPlayerWrapper.playToken(getAppropriateHaptic)
+                },
                 onValueChangeFinished = { onValueChangeFinished(sliderValue) },
                 valueRange = valueRange,
                 steps = getSteps(valueRange, step),
                 modifier = Modifier
-                    .padding(top = 2.dp, bottom = 12.dp)
-                    .padding(horizontal = 14.dp)
+                    .padding(top = 2.dp, bottom = 8.dp)
                     .height(24.dp),
+                enabled = enabled,
             )
         },
-        modifier = modifier,
-        applyPaddings = false,
     )
 }
 
@@ -198,16 +213,14 @@ private fun SliderPreferencePreview(
 ) {
     LawnchairTheme {
         PreferenceGroupPreviewContainer {
-            Item {
-                SliderPreference(
-                    label = "Label",
-                    value = sliderValue,
-                    onValueChangeFinished = {},
-                    valueRange = 0f..1f,
-                    step = 0.1f,
-                    showAsPercentage = true,
-                )
-            }
+            SliderPreference(
+                label = "Label",
+                value = sliderValue,
+                onValueChangeFinished = {},
+                valueRange = 0f..1f,
+                step = 0.1f,
+                showAsPercentage = true,
+            )
         }
     }
 }

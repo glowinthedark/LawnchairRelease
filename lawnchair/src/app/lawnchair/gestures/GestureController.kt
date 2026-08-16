@@ -25,7 +25,6 @@ import app.lawnchair.gestures.handlers.NoOpGestureHandler
 import app.lawnchair.preferences2.PreferenceManager2
 import com.android.launcher3.util.VibratorWrapper
 import com.patrykmichalik.opto.domain.Preference
-import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -36,11 +35,13 @@ import kotlinx.coroutines.launch
 
 class GestureController(private val launcher: LawnchairLauncher) {
     private val prefs = PreferenceManager2.getInstance(launcher)
-    private val scope = MainScope()
+    private val scope = launcher.lifecycleScope
 
     private val doubleTapHandler = handler(prefs.doubleTapGestureHandler)
     private val swipeUpHandler = handler(prefs.swipeUpGestureHandler)
     private val swipeDownHandler = handler(prefs.swipeDownGestureHandler)
+    private val twoFingerSwipeUpHandler = handler(prefs.twoFingerSwipeUpGestureHandler)
+    private val twoFingerSwipeDownHandler = handler(prefs.twoFingerSwipeDownGestureHandler)
     private val homePressHandler = handler(prefs.homePressGestureHandler)
     private val backPressHandler = handler(prefs.backPressGestureHandler)
 
@@ -56,12 +57,27 @@ class GestureController(private val launcher: LawnchairLauncher) {
         triggerHandler(swipeDownHandler)
     }
 
+    fun onTwoFingerSwipeUp() {
+        triggerHandler(twoFingerSwipeUpHandler)
+    }
+
+    fun onTwoFingerSwipeDown() {
+        triggerHandler(twoFingerSwipeDownHandler)
+    }
+
     fun onHomePressed() {
         triggerHandler(homePressHandler, LawnchairApp.isRecentsEnabled)
     }
 
     fun onBackPressed() {
         triggerHandler(backPressHandler, false)
+    }
+
+    fun handle(handler: GestureHandlerConfig) {
+        launcher.lifecycleScope.launch {
+            val handler = handler.createHandler(launcher)
+            handler.onTrigger(launcher)
+        }
     }
 
     private fun triggerHandler(handlerFlow: Flow<GestureHandler>, withHaptic: Boolean = true) {

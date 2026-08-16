@@ -137,8 +137,12 @@ sealed class QsbSearchProvider(
             Firefox,
             Iceraven,
             Startpage,
+            StartpageEU,
             IronFox,
+            Waterfox,
             Kagi,
+            Cromite,
+            Vivaldi,
         )
 
         /**

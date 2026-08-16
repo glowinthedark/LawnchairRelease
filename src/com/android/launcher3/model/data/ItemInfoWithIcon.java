@@ -16,7 +16,6 @@
 
 package com.android.launcher3.model.data;
 
-import static com.android.launcher3.icons.BitmapInfo.FLAG_NO_BADGE;
 import static com.android.launcher3.icons.BitmapInfo.FLAG_THEMED;
 
 import android.content.Context;
@@ -182,6 +181,7 @@ public abstract class ItemInfoWithIcon extends ItemInfo {
      * Returns true if the app corresponding to the item is archived.
      */
     public boolean isArchived() {
+        if (!Utilities.ATLEAST_V) return false;
         if (!Flags.enableSupportForArchiving()) {
             return false;
         }
@@ -323,7 +323,8 @@ public abstract class ItemInfoWithIcon extends ItemInfo {
      */
     public FastBitmapDrawable newIcon(Context context) {
         var shouldTheme = PreferenceManager.getInstance(context).getThemedIcons().get();
-        return newIcon(context, shouldTheme ? BitmapInfo.FLAG_THEMED : BitmapInfo.FLAG_NO_BADGE);
+        // Use 0 (not FLAG_NO_BADGE) when theming is off so work/clone profile badges still draw.
+        return newIcon(context, shouldTheme ? FLAG_THEMED : 0);
     }
 
     /**
